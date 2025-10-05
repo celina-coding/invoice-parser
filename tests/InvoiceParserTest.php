@@ -4,42 +4,80 @@ declare(strict_types=1);
 
 namespace App\Tests;
 
-use App\Service\InvoiceParser;
-use Doctrine\DBAL\Connection;
+use App\Service\InvoiceProcessor;
+use App\Service\Parser\ParserFactoryInterface;
+use App\Service\Parser\ParserInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 
 class InvoiceParserTest extends KernelTestCase
 {
     private $entityManager;
+    private $parserFactory;
 
     public function testParseJson(): void
     {
         $this->entityManager = $this->createMock(EntityManagerInterface::class);
+     
+        $this->parserFactory = $this->createMock(ParserFactoryInterface::class);
+        
+        $mockParser = $this->createMock(ParserInterface::class);
+        $mockParser->expects($this->once())
+            ->method('parse')
+            ->with('data/invoices.json')
+            ->willReturn($this->createMockInvoices(10));
 
-        $connection = $this->createMock(Connection::class);
-        $this->entityManager->method('getConnection')->willReturn($connection);
+        $this->parserFactory->expects($this->once())
+            ->method('createParser')
+            ->with('data/invoices.json')
+            ->willReturn($mockParser);
 
-        $connection->expects($this->exactly(10))->method('executeStatement');
+        $this->entityManager->expects($this->exactly(10))
+            ->method('persist');
 
-        $invoiceParser = new InvoiceParser($this->entityManager);
+        $this->entityManager->expects($this->once())
+            ->method('flush');
 
-        $invoiceParser->parse('data/invoices.json');
+        $invoiceProcessor = new InvoiceProcessor($this->entityManager, $this->parserFactory);
+        $invoiceProcessor->processFile('data/invoices.json');
     }
 
     public function testParseCsv(): void
     {
         $this->entityManager = $this->createMock(EntityManagerInterface::class);
+        
+        $this->parserFactory = $this->createMock(ParserFactoryInterface::class);
+        
+        $mockParser = $this->createMock(ParserInterface::class);
+        $mockParser->expects($this->once())
+            ->method('parse')
+            ->with('data/invoices.csv')
+            ->willReturn($this->createMockInvoices(10));
 
-        $connection = $this->createMock(Connection::class);
-        $this->entityManager->method('getConnection')->willReturn($connection);
+        $this->parserFactory->expects($this->once())
+            ->method('createParser')
+            ->with('data/invoices.csv')
+            ->willReturn($mockParser);
 
-        $connection->expects($this->exactly(10))->method('executeStatement');
+        $this->entityManager->expects($this->exactly(10))
+            ->method('persist');
 
-        $invoiceParser = new InvoiceParser($this->entityManager);
+        $this->entityManager->expects($this->once())
+            ->method('flush');
 
-        $invoiceParser->parse('data/invoices.csv');
+        $invoiceProcessor = new InvoiceProcessor($this->entityManager, $this->parserFactory);
+        $invoiceProcessor->processFile('data/invoices.csv');
     }
 
-}
 
+    private function createMockInvoices(int $count): array
+    {
+        $invoices = [];
+        for ($i = 0; $i < $count; $i++) {
+            $invoice = $this->createMock(\App\Entity\Invoice::class);
+            $invoice->method('getName')->willReturn("Invoice $i");
+            $invoices[] = $invoice;
+        }
+        return $invoices;
+    }
+}
