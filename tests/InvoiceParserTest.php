@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests;
 
-use App\Service\InvoiceProcessor;
+use App\Service\InvoiceParser;
 use App\Service\Parser\ParserFactoryInterface;
 use App\Service\Parser\ParserInterface;
 use Doctrine\ORM\EntityManagerInterface;
@@ -18,7 +18,6 @@ class InvoiceParserTest extends KernelTestCase
     public function testParseJson(): void
     {
         $this->entityManager = $this->createMock(EntityManagerInterface::class);
-     
         $this->parserFactory = $this->createMock(ParserFactoryInterface::class);
         
         $mockParser = $this->createMock(ParserInterface::class);
@@ -38,14 +37,13 @@ class InvoiceParserTest extends KernelTestCase
         $this->entityManager->expects($this->once())
             ->method('flush');
 
-        $invoiceProcessor = new InvoiceProcessor($this->entityManager, $this->parserFactory);
-        $invoiceProcessor->processFile('data/invoices.json');
+        $invoiceParser = new InvoiceParser($this->entityManager, $this->parserFactory);
+        $invoiceParser->parse('data/invoices.json');
     }
 
     public function testParseCsv(): void
     {
         $this->entityManager = $this->createMock(EntityManagerInterface::class);
-        
         $this->parserFactory = $this->createMock(ParserFactoryInterface::class);
         
         $mockParser = $this->createMock(ParserInterface::class);
@@ -65,10 +63,9 @@ class InvoiceParserTest extends KernelTestCase
         $this->entityManager->expects($this->once())
             ->method('flush');
 
-        $invoiceProcessor = new InvoiceProcessor($this->entityManager, $this->parserFactory);
-        $invoiceProcessor->processFile('data/invoices.csv');
+        $invoiceParser = new InvoiceParser($this->entityManager, $this->parserFactory);
+        $invoiceParser->parse('data/invoices.csv');
     }
-
 
     private function createMockInvoices(int $count): array
     {

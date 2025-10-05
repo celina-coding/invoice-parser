@@ -1,68 +1,48 @@
 <?php
 
-// declare(strict_types=1);
+declare(strict_types=1);
 
+namespace App\Service;
 
-// namespace App\Service;
+use App\Entity\Invoice;
+use App\Service\Parser\ParserFactoryInterface;
+use Doctrine\ORM\EntityManagerInterface;
+use RuntimeException;
 
-// use Doctrine\ORM\EntityManagerInterface;
+class InvoiceParser
+{
+    public function __construct(
+        private EntityManagerInterface $entityManager,
+        private ParserFactoryInterface $parserFactory
+    ) {}
 
+    public function parse(string $filePath): void
+    {
+        if (!file_exists($filePath)) {
+            throw new RuntimeException("Fichier non trouvé: {$filePath}");
+        }
 
-// class InvoiceParser
-// {
-//     private EntityManagerInterface $em;
+        $parser = $this->parserFactory->createParser($filePath);
+        $invoices = $parser->parse($filePath);
 
-//     public function __construct(EntityManagerInterface $em)
-//     {
-//         $this->em = $em;
-//     }
+        foreach ($invoices as $invoice) {
+            $this->upsertInvoice($invoice);
+        }
 
-//     public function parse(string $fp): void
-//     {
-//         if (str_contains($fp, 'json')) {        //Pour les json
-//             $f = file_get_contents($fp);
-//             $d = preg_split("/\r\n|\n|\r/", $f);
-//             $c = 0;
-//             $m = "";
-//             $n = "";
-//             /** Tant qu'il y a une ligne */
-//             while(true){
-//                 if(isset($d[$c])){
-//                     if(str_contains($d[$c], "montant")){
-//                     $m = explode(": ", $d[$c])[1];
-//                     $m = substr($m, 0, strlen($m) - 1);
-//                     }
-//                     if(str_contains($d[$c], "nom")){
-//                     $n = explode(": ", $d[$c])[1];
-//                     $n = substr($n, 0, strlen($n) - 1);
-//                     }
-//                     if(str_contains($d[$c], "}")){
-//                         $this->em->getConnection()->executeStatement(
-//                 "UPDATE invoice SET amount = {$m} WHERE name = '{$n}'"
-//                     );
-//                     }
-//                     $c++;
-//                 }else{
-//                 break;
-//                 }
-//             }
-//         } elseif (str_contains($fp, 'csv')) {   //Pour les json
+        $this->entityManager->flush();
+    }
 
+    private function upsertInvoice(Invoice $invoice): void
+    {
+        $existingInvoice = $this->entityManager->getRepository(Invoice::class)
+            ->findOneBy(['name' => $invoice->getName()]);
 
-//             $d = array_map(function($r) {
-//                 return str_getcsv($r, "\t");
-//             }, file($fp));
-//             $c = 0;
-//                 while(true){
-//                 if(isset($d[$c])){
-//                     $this->em->getConnection()->executeStatement(
-//                         "UPDATE invoice SET amount = {$d[$c][0]} WHERE name = '{$d[$c][2]}'"
-//                     );
-//                     $c++;
-//                 }else{
-//                     break;
-//                 }
-//                 }
-//         }
-//     }
-// }
+        if ($existingInvoice !== null) {
+            $existingInvoice->setAmount($invoice->getAmount());
+            $existingInvoice->setCurrency($invoice->getCurrency());
+            $existingInvoice->setDate($invoice->getDate());
+        } else {
+            $this->entityManager->persist($invoice);
+        }
+    }
+}
